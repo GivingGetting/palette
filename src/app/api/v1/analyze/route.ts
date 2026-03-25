@@ -3,9 +3,16 @@ import { randomUUID } from "crypto";
 import { createTask, updateTask } from "@/lib/store/tasks";
 import { addToLibrary } from "@/lib/store/library";
 import { analyzeUrl, analyzeImage } from "@/lib/analyzer";
-
+import { createServerClient, extractToken } from "@/lib/supabase-server";
 
 export async function POST(req: Request) {
+  const token = extractToken(req);
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const db = createServerClient(token);
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = await req.json();
   const { source_type, url, image, media_type, engine } = body;
 
@@ -29,7 +36,7 @@ export async function POST(req: Request) {
           ? await analyzeUrl(url, { onProgress, engine })
           : await analyzeImage(image, { onProgress, mediaType: media_type, engine });
 
-      addToLibrary(task_id, styleDna);
+      await addToLibrary(db, user.id, task_id, styleDna);
       updateTask(task_id, { status: "done", result: styleDna, step: "完成", percent: 1 });
     } catch (err) {
       updateTask(task_id, {

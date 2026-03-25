@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import type { StyleDNA } from "@/lib/analyzer/schema";
 import StyleDnaReport from "@/components/StyleDnaReport";
+import { useRequireAuth } from "@/components/useRequireAuth";
 
 type Status = "queued" | "processing" | "done" | "failed";
 
@@ -16,6 +17,7 @@ interface PollResponse {
 }
 
 export default function AnalyzePage() {
+  useRequireAuth();
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<PollResponse | null>(null);
 

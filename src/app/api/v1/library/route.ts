@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { getLibrary } from "@/lib/store/library";
+import { createServerClient, extractToken } from "@/lib/supabase-server";
 
-export async function GET() {
-  const items = getLibrary().map((item) => ({
+export async function GET(req: Request) {
+  const token = extractToken(req);
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const db = createServerClient(token);
+  const items = (await getLibrary(db)).map((item) => ({
     id: item.id,
     createdAt: item.createdAt,
     source_url: item.styleDna.meta.source_url,

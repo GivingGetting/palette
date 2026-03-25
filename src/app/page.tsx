@@ -2,8 +2,12 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import AuthButton from "@/components/AuthButton";
+import { useRequireAuth } from "@/components/useRequireAuth";
+import { getToken } from "@/lib/auth";
 
 export default function HomePage() {
+  useRequireAuth();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -28,7 +32,7 @@ export default function HomePage() {
     try {
       const res = await fetch("/api/v1/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ source_type: "url", url: targetUrl.trim(), engine: getEngineConfig() }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -48,7 +52,7 @@ export default function HomePage() {
       const mediaType = file.type || "image/png";
       const res = await fetch("/api/v1/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ source_type: "image", image: base64, media_type: mediaType, engine: getEngineConfig() }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -80,6 +84,7 @@ export default function HomePage() {
         <div className="flex items-center gap-6 text-sm text-[var(--text-muted)]">
           <a href="/library" className="hover:text-[var(--text)] transition-colors">风格库</a>
           <a href="#" className="hover:text-[var(--text)] transition-colors">对比生图</a>
+          <AuthButton />
         </div>
       </nav>
 

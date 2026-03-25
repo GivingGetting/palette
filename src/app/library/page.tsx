@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AuthButton from "@/components/AuthButton";
+import { useRequireAuth } from "@/components/useRequireAuth";
+import { getToken } from "@/lib/auth";
 
 interface LibraryCard {
   id: string;
@@ -17,11 +20,12 @@ interface LibraryCard {
 }
 
 export default function LibraryPage() {
+  useRequireAuth();
   const [items, setItems] = useState<LibraryCard[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/v1/library")
+    fetch("/api/v1/library", { headers: { Authorization: `Bearer ${getToken()}` } })
       .then((r) => r.json())
       .then((d) => { setItems(d.data); setLoading(false); });
   }, []);
@@ -30,7 +34,10 @@ export default function LibraryPage() {
     e.preventDefault();
     e.stopPropagation();
     if (!confirm("确定删除这条记录吗？")) return;
-    await fetch(`/api/v1/library/${id}`, { method: "DELETE" });
+    await fetch(`/api/v1/library/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
     setItems((prev) => prev.filter((i) => i.id !== id));
   }
 
@@ -42,6 +49,7 @@ export default function LibraryPage() {
         <div className="flex items-center gap-6 text-sm text-[var(--text-muted)]">
           <span className="text-[var(--text)] font-medium">风格库</span>
           <a href="#" className="hover:text-[var(--text)] transition-colors">对比生图</a>
+          <AuthButton />
         </div>
       </nav>
 
