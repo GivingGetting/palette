@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #F5F4EF;
+  --surface: #FFFFFF;
+  --border: #E8E6DF;
+  --text: #1A1A1A;
+  --text-muted: #6B6860;
+  --accent-from: #F97316;
+  --accent-to: #EF4444;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent-from), var(--accent-to));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #F97316, #EF4444);
+  color: white;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+
+.card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.06);
+  flex-shrink: 0;
+}
