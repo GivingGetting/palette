@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import type { StyleDNA } from "@/lib/analyzer/schema";
 import { buildStylePrompt } from "@/lib/analyzer/prompt";
+import { generateComfyUI } from "@/lib/comfyui-client";
 
 const MODELS = [
   { key: "gpt-4o",             label: "DALL-E 3",         vendor: "OpenAI",    color: "#10a37f", keyId: "openai" },
@@ -73,25 +74,79 @@ function ComparePage() {
     setGenerating(true);
     setJobs(Array.from(selectedModels).map((model) => ({ model, status: "generating" })));
 
-    try {
-      const res = await fetch("/api/v1/compare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: builtPrompt,
-          models: Array.from(selectedModels),
-          user_api_keys: { openai: apiKeys.openai, google: apiKeys.google, ideogram: apiKeys.ideogram, comfyui_url: apiKeys.comfyui_url, comfyui_model: apiKeys.comfyui_model },
-          comfyui_upscale: comfyUpscale,
-          comfyui_steps: comfySteps,
-        }),
-      });
+    const modelsArray = Array.from(selectedModels);
+    const otherModels = modelsArray.filter((m): m is Exclude<ModelKey, "comfyui"> => m !== "comfyui");
+    const hasComfyUI = modelsArray.includes("comfyui");
 
-      const data = await res.json();
-      setJobs(data.results);
-    } catch (err) {
-      setJobs((prev) =>
-        prev.map((j) => ({ ...j, status: "failed" as const, error: err instanceof Error ? err.message : "请求失败" }))
-      );
+    try {
+      const promises: Promise<void>[] = [];
+
+      // Other models → API route
+      if (otherModels.length > 0) {
+        promises.push(
+          fetch("/api/v1/compare", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: builtPrompt,
+              models: otherModels,
+              user_api_keys: { openai: apiKeys.openai, google: apiKeys.google, ideogram: apiKeys.ideogram },
+            }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              setJobs((prev) =>
+                prev.map((j) => {
+                  const r = data.results?.find((x: { model: string }) => x.model === j.model);
+                  return r ? { ...j, ...r } : j;
+                })
+              );
+            })
+            .catch((err) => {
+              setJobs((prev) =>
+                prev.map((j) =>
+                  otherModels.includes(j.model)
+                    ? { ...j, status: "failed" as const, error: err instanceof Error ? err.message : "请求失败" }
+                    : j
+                )
+              );
+            })
+        );
+      }
+
+      // ComfyUI → browser direct call
+      if (hasComfyUI) {
+        const start = Date.now();
+        promises.push(
+          generateComfyUI(
+            builtPrompt,
+            apiKeys.comfyui_url,
+            apiKeys.comfyui_model,
+            comfyUpscale,
+            comfySteps
+          )
+            .then(({ imageBase64, elapsedMs }) => {
+              setJobs((prev) =>
+                prev.map((j) =>
+                  j.model === "comfyui"
+                    ? { ...j, status: "done" as const, imageBase64, elapsedMs }
+                    : j
+                )
+              );
+            })
+            .catch((err) => {
+              setJobs((prev) =>
+                prev.map((j) =>
+                  j.model === "comfyui"
+                    ? { ...j, status: "failed" as const, error: err instanceof Error ? err.message : "ComfyUI 失败", elapsedMs: Date.now() - start }
+                    : j
+                )
+              );
+            })
+        );
+      }
+
+      await Promise.all(promises);
     } finally {
       setGenerating(false);
     }
