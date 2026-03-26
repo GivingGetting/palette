@@ -105,7 +105,7 @@ function ComparePage() {
             .catch((err) => {
               setJobs((prev) =>
                 prev.map((j) =>
-                  otherModels.includes(j.model)
+                  (otherModels as ModelKey[]).includes(j.model)
                     ? { ...j, status: "failed" as const, error: err instanceof Error ? err.message : "请求失败" }
                     : j
                 )
