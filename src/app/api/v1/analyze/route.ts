@@ -24,11 +24,11 @@ export async function POST(req: Request) {
   }
 
   const task_id = randomUUID();
-  createTask(task_id);
+  await createTask(db, user.id, task_id);
 
   void (async () => {
-    updateTask(task_id, { status: "processing" });
-    const onProgress = (step: string, percent: number) => updateTask(task_id, { step, percent });
+    await updateTask(db, task_id, { status: "processing" });
+    const onProgress = (step: string, percent: number) => updateTask(db, task_id, { step, percent });
 
     try {
       const { styleDna } =
@@ -37,9 +37,9 @@ export async function POST(req: Request) {
           : await analyzeImage(image, { onProgress, mediaType: media_type, engine });
 
       await addToLibrary(db, user.id, task_id, styleDna);
-      updateTask(task_id, { status: "done", result: styleDna, step: "完成", percent: 1 });
+      await updateTask(db, task_id, { status: "done", result: styleDna, step: "完成", percent: 1 });
     } catch (err) {
-      updateTask(task_id, {
+      await updateTask(db, task_id, {
         status: "failed",
         error: err instanceof Error ? err.message : "未知错误",
       });

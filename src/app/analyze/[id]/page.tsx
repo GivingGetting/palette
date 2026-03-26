@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import type { StyleDNA } from "@/lib/analyzer/schema";
 import StyleDnaReport from "@/components/StyleDnaReport";
 import { useRequireAuth } from "@/components/useRequireAuth";
+import { getToken } from "@/lib/auth";
 
 type Status = "queued" | "processing" | "done" | "failed";
 
@@ -27,11 +28,12 @@ export default function AnalyzePage() {
 
     async function poll() {
       try {
-        const res = await fetch(`/api/v1/analyze/${id}`);
+        const headers = { Authorization: `Bearer ${getToken()}` };
+        const res = await fetch(`/api/v1/analyze/${id}`, { headers });
 
         // Task not found (e.g. after server restart) — try library
         if (res.status === 404) {
-          const libRes = await fetch(`/api/v1/library/${id}`);
+          const libRes = await fetch(`/api/v1/library/${id}`, { headers });
           if (libRes.ok) {
             const libData = await libRes.json();
             setData({ task_id: id, status: "done", result: libData.result });

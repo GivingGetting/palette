@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { getTask } from "@/lib/store/tasks";
+import { createServerClient, extractToken } from "@/lib/supabase-server";
 
-export async function GET(_req: Request, { params }: { params: Promise<{ task_id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ task_id: string }> }) {
+  const token = extractToken(req);
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { task_id } = await params;
-  const task = getTask(task_id);
+  const db = createServerClient(token);
+  const task = await getTask(db, task_id);
 
   if (!task) {
     return NextResponse.json({ error: { code: "not_found", message: "Task not found" } }, { status: 404 });
