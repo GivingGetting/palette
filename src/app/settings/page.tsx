@@ -6,7 +6,7 @@ const KEYS = [
   {
     id: "anthropic",
     label: "Anthropic",
-    desc: "用于 Claude 风格解析引擎（BYOK，可覆盖服务器默认 Key）",
+    desc: "服务器已默认配置，无需填写。填写后将优先使用你自己的 Key（BYOK）。",
     placeholder: "sk-ant-...",
     color: "#d97706",
     docsUrl: "https://console.anthropic.com/settings/keys",
