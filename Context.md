@@ -102,6 +102,12 @@ src/app/
 **原因**：MVP 阶段单人本地使用，避免引入数据库复杂性。
 **未来**：生产化时迁移到 PostgreSQL + Prisma（技术方案已在 `Palette_TechSpec_v1.0.md` 中设计完毕）。
 
+### 决策 6：Vercel Serverless 后台任务 waitUntil
+
+**原因**：`analyze/route.ts` 需要在返回 202 后继续执行 Playwright 抓取 + Claude 分析（耗时 1–5 分钟）。Vercel Serverless 在返回 HTTP 响应后会立刻冻结执行上下文。
+**解法**：使用 `@vercel/functions` 的 `waitUntil()` 包裹后台任务，并导出 `maxDuration = 300`（5 分钟）。
+**影响**：需要 Vercel Pro Plan 才能使用超过 10s 的 maxDuration。
+
 ---
 
 ## 四、本地开发环境
@@ -158,6 +164,7 @@ bash ~/ComfyUI/start.sh
 | ComfyUI 需手动启动 | 无自动服务管理 | 已知，接受 |
 | API Key 重置问题 | localStorage 随浏览器清理 | 已知，接受（MVP 阶段） |
 | 图片以 base64 传输 | 无文件存储服务 | 已知，未来迁移 S3 |
+| Vercel 后台任务被终止 | Serverless 返回响应后冻结上下文 | 已修复（`waitUntil` + `maxDuration=300`） |
 
 ---
 

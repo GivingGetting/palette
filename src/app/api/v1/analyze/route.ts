@@ -4,6 +4,10 @@ import { createTask, updateTask } from "@/lib/store/tasks";
 import { addToLibrary } from "@/lib/store/library";
 import { analyzeUrl, analyzeImage } from "@/lib/analyzer";
 import { createServerClient, extractToken } from "@/lib/supabase-server";
+import { waitUntil } from "@vercel/functions";
+
+// Vercel Serverless 最大执行时间（秒），覆盖 Playwright + Claude 分析耗时
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const token = extractToken(req);
@@ -34,7 +38,8 @@ export async function POST(req: Request) {
   const task_id = randomUUID();
   await createTask(db, user.id, task_id);
 
-  void (async () => {
+  // waitUntil 确保 Vercel Serverless 在返回 202 后不会立刻终止后台任务
+  waitUntil((async () => {
     await updateTask(db, task_id, { status: "processing" });
     const onProgress = (step: string, percent: number) => updateTask(db, task_id, { step, percent });
 
@@ -52,7 +57,7 @@ export async function POST(req: Request) {
         error: err instanceof Error ? err.message : "未知错误",
       });
     }
-  })();
+  })());
 
   return NextResponse.json(
     { task_id, status: "queued", poll_url: `/api/v1/analyze/${task_id}` },

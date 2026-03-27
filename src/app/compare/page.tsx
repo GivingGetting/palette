@@ -11,7 +11,7 @@ const MODELS = [
   { key: "gemini-flash-image", label: "Gemini Flash Image", vendor: "Google",  color: "#4285f4", keyId: "google" },
   { key: "ideogram-v2",        label: "Ideogram v2",       vendor: "Ideogram", color: "#7c3aed", keyId: "ideogram" },
   { key: "comfyui",            label: "ComfyUI",           vendor: "本地",     color: "#6366f1", keyId: "comfyui_url" },
-  { key: "claude-svg",         label: "Claude SVG",        vendor: "Anthropic", color: "#d97706", keyId: "" },
+  { key: "claude-svg",         label: "Claude SVG",        vendor: "Anthropic", color: "#d97706", keyId: "anthropic" },
 ] as const;
 
 type ModelKey = (typeof MODELS)[number]["key"];
@@ -90,7 +90,7 @@ function ComparePage() {
             body: JSON.stringify({
               prompt: builtPrompt,
               models: otherModels,
-              user_api_keys: { openai: apiKeys.openai, google: apiKeys.google, ideogram: apiKeys.ideogram },
+              user_api_keys: { openai: apiKeys.openai, google: apiKeys.google, ideogram: apiKeys.ideogram, anthropic: apiKeys.anthropic },
             }),
           })
             .then((res) => res.json())
@@ -166,6 +166,7 @@ function ComparePage() {
         body: JSON.stringify({ imageBase64: imgData }),
       });
       const text = await res.text();
+      if (!res.ok) throw new Error(text || `服务器错误 (${res.status})`);
       if (!text) throw new Error(`服务器无响应 (${res.status})`);
       const data = JSON.parse(text);
       if (data.error) throw new Error(data.error);

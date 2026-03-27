@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const { prompt, models, user_api_keys, comfyui_upscale, comfyui_steps } = body as {
     prompt: string;
     models: ModelKey[];
-    user_api_keys: { openai?: string; google?: string; ideogram?: string; comfyui_url?: string; comfyui_model?: string };
+    user_api_keys: { openai?: string; google?: string; ideogram?: string; anthropic?: string; comfyui_url?: string; comfyui_model?: string };
     comfyui_upscale?: UpscaleMode;
     comfyui_steps?: number;
   };
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 async function generateImage(
   model: ModelKey,
   prompt: string,
-  keys: { openai?: string; google?: string; ideogram?: string; comfyui_url?: string; comfyui_model?: string },
+  keys: { openai?: string; google?: string; ideogram?: string; anthropic?: string; comfyui_url?: string; comfyui_model?: string },
   upscaleMode: UpscaleMode,
   customSteps?: number
 ): Promise<GenerateResult> {
@@ -50,7 +50,7 @@ async function generateImage(
       case "gemini-flash-image": return await generateGemini(prompt, keys.google, start);
       case "ideogram-v2":        return await generateIdeogram(prompt, keys.ideogram, start);
       case "comfyui":            return await generateComfyUI(prompt, keys.comfyui_url, keys.comfyui_model, upscaleMode, start, customSteps);
-      case "claude-svg":         return await generateClaudeSVG(prompt, start);
+      case "claude-svg":         return await generateClaudeSVG(prompt, keys.anthropic, start);
     }
   } catch (err) {
     return { model, status: "failed", error: err instanceof Error ? err.message : "未知错误", elapsedMs: Date.now() - start };
@@ -227,8 +227,10 @@ async function generateComfyUI(
   throw new Error(`ComfyUI 生成超时（超过 ${maxPolls * 2} 秒）`);
 }
 
-async function generateClaudeSVG(prompt: string, start: number): Promise<GenerateResult> {
-  const client = new Anthropic();
+async function generateClaudeSVG(prompt: string, apiKey: string | undefined, start: number): Promise<GenerateResult> {
+  const resolvedKey = apiKey || process.env.ANTHROPIC_API_KEY;
+  if (!resolvedKey) throw new Error("未填写 Anthropic API Key，请前往设置页添加");
+  const client = new Anthropic({ apiKey: resolvedKey });
   const response = await client.messages.create({
     model: "claude-opus-4-6",
     max_tokens: 16000,

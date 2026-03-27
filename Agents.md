@@ -202,4 +202,5 @@ Apply this design language strictly to the generated image.
 | DALL-E 3 | Next.js API Route（服务端代理） | 用户 BYOK | 默认 fetch |
 | Gemini Flash Image | Next.js API Route（服务端代理） | 用户 BYOK | 默认 fetch |
 | Ideogram v2 | Next.js API Route（服务端代理） | 用户 BYOK | 默认 fetch |
+| Claude SVG | Next.js API Route（服务端代理） | 用户 BYOK（回退 `ANTHROPIC_API_KEY`） | 默认 fetch |
 | ComfyUI | 用户本地机器（`127.0.0.1:8188`） | 无认证（本地） | 700s |

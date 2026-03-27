@@ -60,9 +60,11 @@ src/
 | Gemini Flash Image | `google` | 服务端（Vercel） | 模型：`gemini-2.5-flash-image` |
 | Ideogram v2 | `ideogram` | 服务端（Vercel） | 服务端转 base64 |
 | ComfyUI | `comfyui_url` + `comfyui_model` | **浏览器直连** | 本地服务，轮询 history；绕过 Vercel serverless |
-| Claude SVG | — | 服务端（Vercel） | Claude 生成 SVG 代码 |
+| Claude SVG | `anthropic` | 服务端（Vercel） | Claude 生成 SVG 代码，优先用户 BYOK Key，回退服务端环境变量 |
 
 > **ComfyUI 浏览器直连**：Vercel serverless 无法访问 `127.0.0.1`，因此 ComfyUI 请求由浏览器直接发出（`src/lib/comfyui-client.ts`）。其他模型仍走 `/api/v1/compare`。
+
+> **后台任务存活**：`analyze/route.ts` 使用 `@vercel/functions` 的 `waitUntil()` 确保返回 202 后分析任务不被 Vercel 终止。`maxDuration = 300`（5 分钟）。
 
 ## ComfyUI 本地配置
 
