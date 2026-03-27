@@ -8,7 +8,7 @@
 
 ## 技术栈
 
-- **框架**：Next.js 14 App Router，TypeScript
+- **框架**：Next.js 15 App Router，TypeScript
 - **样式**：Tailwind CSS
 - **AI 解析引擎**：Claude（`ANTHROPIC_API_KEY`，服务端）或 Ollama（本地，免费）
 - **生图模型**：DALL-E 3 / Gemini Flash Image / Ideogram v2 / ComfyUI（BYOK）
@@ -25,8 +25,9 @@ src/
     analyze/[id]/page.tsx     # 单个 Style DNA 详情页
     api/v1/
       analyze/route.ts        # POST：抓取网页 → Claude/Ollama 分析 → 存库
+      analyze/[task_id]/route.ts  # GET：轮询任务状态（读 Supabase tasks 表）
       library/[id]/route.ts   # GET：获取单个 Style DNA
-      compare/route.ts        # POST：并发调用多个生图模型
+      compare/route.ts        # POST：并发调用云端生图模型（OpenAI/Gemini/Ideogram/Claude SVG）
   lib/
     analyzer/
       claude-analyzer.ts      # Claude 调用逻辑
@@ -35,8 +36,9 @@ src/
       prompt.ts               # buildStylePrompt() — DNA 转生图 Prompt
       scraper.ts              # 网页内容抓取
     store/
-      library.ts              # Style DNA 持久化（本地 JSON）
-      tasks.ts                # 分析任务状态管理
+      library.ts              # Style DNA 持久化（Supabase library 表）
+      tasks.ts                # 分析任务状态管理（Supabase tasks 表）
+    comfyui-client.ts         # ComfyUI 浏览器直连逻辑（绕过 Vercel serverless）
 ```
 
 ## 关键数据类型
@@ -52,12 +54,15 @@ src/
 
 所有 API Key 存在用户浏览器 localStorage（`palette_api_keys`），每次请求时由前端传给后端。
 
-| 模型 | keyId | 说明 |
-|------|-------|------|
-| DALL-E 3 | `openai` | 返回 base64 (`b64_json`) |
-| Gemini Flash Image | `google` | 模型：`gemini-2.5-flash-image` |
-| Ideogram v2 | `ideogram` | 服务端转 base64 |
-| ComfyUI | `comfyui_url` + `comfyui_model` | 本地服务，轮询 history |
+| 模型 | keyId | 调用方式 | 说明 |
+|------|-------|----------|------|
+| DALL-E 3 | `openai` | 服务端（Vercel） | 返回 base64 (`b64_json`) |
+| Gemini Flash Image | `google` | 服务端（Vercel） | 模型：`gemini-2.5-flash-image` |
+| Ideogram v2 | `ideogram` | 服务端（Vercel） | 服务端转 base64 |
+| ComfyUI | `comfyui_url` + `comfyui_model` | **浏览器直连** | 本地服务，轮询 history；绕过 Vercel serverless |
+| Claude SVG | — | 服务端（Vercel） | Claude 生成 SVG 代码 |
+
+> **ComfyUI 浏览器直连**：Vercel serverless 无法访问 `127.0.0.1`，因此 ComfyUI 请求由浏览器直接发出（`src/lib/comfyui-client.ts`）。其他模型仍走 `/api/v1/compare`。
 
 ## ComfyUI 本地配置
 
@@ -65,6 +70,7 @@ src/
 - **启动命令**：`bash ~/ComfyUI/start.sh`（后台或终端运行）
 - **访问地址**：`http://127.0.0.1:8188`
 - **运行环境**：Apple M4，16GB 统一内存，MPS 加速
+- **CORS**：`start.sh` 已加 `--enable-cors-header`，允许浏览器跨域访问（部署到 Vercel 后必须）
 
 ### 已下载模型文件
 
@@ -95,7 +101,7 @@ src/
 
 ### ComfyUI Workflow 说明
 
-使用 FLUX.1 GGUF 工作流（定义在 `src/app/api/v1/compare/route.ts`）：
+使用 FLUX.1 GGUF 工作流（定义在 `src/lib/comfyui-client.ts`，浏览器端执行）：
 - `UnetLoaderGGUF` 加载主模型（非 `UNETLoader`，因为是 GGUF 格式）
 - `weight_dtype` 不可用 `fp8_e4m3fn`（MPS 不支持）
 - dev 默认 20 步，耗时约 30–50 分钟；schnell 默认 2 步，耗时约 3–4 分钟
@@ -144,18 +150,47 @@ Ollama streaming API 每条 JSON line 对应一个 token chunk。`reader.read()`
 **一行 JSON 可能横跨两个 chunk**，必须用 `lineBuffer` 缓冲不完整行再拼接，
 否则 `JSON.parse` 失败后静默丢弃内容，导致输出截断（历史 bug：len=1728）。
 
+## 部署
+
+- **平台**：Vercel（`donna-lius-projects` 团队，项目名 `palette`）
+- **生产 URL**：`https://palette-lemon.vercel.app`
+- **框架设置**：`vercel.json` 中 `"framework": "nextjs"`
+- **任务状态持久化**：Supabase `tasks` 表（带 RLS），解决 serverless 多实例内存隔离问题
+- **部署命令**：`VERCEL_ORG_ID=team_65UWDbQdcJSupmqakMu6sVP4 VERCEL_PROJECT_ID=prj_XGR9WHFS5FdfVh50p7Wx3abY5lUw vercel --prod --yes`
+
+### Supabase 表结构
+
+```sql
+-- tasks 表（分析任务状态）
+create table tasks (
+  id text primary key,
+  user_id uuid references auth.users not null,
+  status text not null default 'queued',
+  step text,
+  percent float,
+  result jsonb,
+  error text,
+  created_at bigint not null
+);
+alter table tasks enable row level security;
+create policy "用户只能访问自己的任务" on tasks for all using (auth.uid() = user_id);
+```
+
 ## 已知限制
 
 - ComfyUI 每次生图约 3–4 分钟（MPS + GGUF 推理速度限制）
 - `flux1-schnell.safetensors`（22GB bf16）在 16GB 机器上会 OOM，必须用 GGUF 版本
 - fp8 类型在 Apple MPS 上不支持（报 `TypeError: Trying to convert Float8_e4m3fn`）
-- ComfyUI 需要手动启动，不会随项目自动启动
+- ComfyUI 需要手动启动，不会随项目自动启动；关机后需重新运行 `bash ~/ComfyUI/start.sh`
 - Ollama `num_ctx: 16384` 在 M4 16GB 上会 swap → 推理超时，上限为 8192
+- ComfyUI 浏览器直连要求用户本地 ComfyUI 正在运行且 `--enable-cors-header` 已开启
 
 ## 环境变量
 
 ```
-ANTHROPIC_API_KEY=   # Claude API Key（服务端，.env.local）
+ANTHROPIC_API_KEY=              # Claude API Key（服务端，.env.local 本地 / Vercel 环境变量）
+NEXT_PUBLIC_SUPABASE_URL=       # Supabase 项目 URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=  # Supabase anon key
 ```
 
-其余 Key（OpenAI、Google、Ideogram）由用户在设置页填写，存 localStorage。
+其余 Key（OpenAI、Google、Ideogram、ComfyUI）由用户在设置页填写，存 localStorage。
