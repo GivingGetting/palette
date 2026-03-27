@@ -155,7 +155,7 @@ Ollama streaming API 每条 JSON line 对应一个 token chunk。`reader.read()`
 ## 部署
 
 - **平台**：Vercel（`donna-lius-projects` 团队，项目名 `palette`）
-- **生产 URL**：`https://palette-lemon.vercel.app`
+- **生产 URL**：`https://palette.guniaor.com`
 - **框架设置**：`vercel.json` 中 `"framework": "nextjs"`
 - **任务状态持久化**：Supabase `tasks` 表（带 RLS），解决 serverless 多实例内存隔离问题
 - **部署命令**：`VERCEL_ORG_ID=team_65UWDbQdcJSupmqakMu6sVP4 VERCEL_PROJECT_ID=prj_XGR9WHFS5FdfVh50p7Wx3abY5lUw vercel --prod --yes`
