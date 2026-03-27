@@ -16,6 +16,14 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { source_type, url, image, media_type, engine, anthropic_key } = body;
 
+  // Require user-provided key unless server env var is explicitly set
+  if (!anthropic_key && !process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { error: { code: "no_api_key", message: "请先在设置页填写你的 Anthropic API Key" } },
+      { status: 400 }
+    );
+  }
+
   if (source_type === "url" && !url) {
     return NextResponse.json({ error: { code: "bad_request", message: "url required" } }, { status: 400 });
   }
