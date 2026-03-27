@@ -99,20 +99,23 @@ export async function analyzeWithClaude(
   const { screenshotBase64, cssSummary } = scrapeResult;
   const mediaType = (options.mediaType ?? "image/png") as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
 
-  const userContent: Anthropic.MessageParam["content"] = [
-    {
+  const userContent: Anthropic.MessageParam["content"] = [];
+
+  if (screenshotBase64) {
+    userContent.push({
       type: "image",
       source: {
         type: "base64",
         media_type: mediaType,
         data: screenshotBase64,
       },
-    },
-    {
-      type: "text",
-      text: buildUserPrompt(cssSummary, options),
-    },
-  ];
+    });
+  }
+
+  userContent.push({
+    type: "text",
+    text: buildUserPrompt(cssSummary, options),
+  });
 
   const response = await client.messages.create({
     model: "claude-opus-4-6",

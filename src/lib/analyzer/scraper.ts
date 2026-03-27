@@ -1,5 +1,3 @@
-import { chromium, type Page } from "playwright";
-
 export interface ScrapeResult {
   screenshotBase64: string;
   cssSummary: CssSummary;
@@ -18,7 +16,95 @@ interface ElementStyle {
   styles: Record<string, string>;
 }
 
-// CSS properties most relevant for style analysis
+// ── Fetch HTML + linked CSS, parse without a browser ────────────────────────
+
+export async function scrapePage(url: string): Promise<ScrapeResult> {
+  const html = await fetchText(url);
+  const cssTexts = await fetchLinkedCss(url, html);
+
+  // Inline <style> blocks
+  const styleTagRe = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = styleTagRe.exec(html)) !== null) {
+    cssTexts.push(m[1]);
+  }
+
+  const allCss = cssTexts.join("\n");
+  const cssSummary = parseCss(allCss);
+
+  return {
+    screenshotBase64: "", // no browser → no screenshot in URL mode
+    cssSummary,
+  };
+}
+
+// ── HTTP helpers ─────────────────────────────────────────────────────────────
+
+async function fetchText(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,*/*",
+    },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
+  return res.text();
+}
+
+async function fetchLinkedCss(baseUrl: string, html: string): Promise<string[]> {
+  const base = new URL(baseUrl);
+  const hrefRe = /<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["']/gi;
+  const hrefs: string[] = [];
+  let m: RegExpExecArray | null;
+
+  while ((m = hrefRe.exec(html)) !== null) {
+    try {
+      hrefs.push(new URL(m[1], base).href);
+    } catch {
+      // malformed href — skip
+    }
+  }
+
+  // Fetch up to 8 stylesheets concurrently; ignore failures
+  const results = await Promise.allSettled(
+    hrefs.slice(0, 8).map((href) => fetchText(href))
+  );
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+    .map((r) => r.value);
+}
+
+// ── CSS parser ───────────────────────────────────────────────────────────────
+
+function parseCss(css: string): CssSummary {
+  const cssVariables = extractCssVariables(css);
+  const fonts = extractFonts(css);
+  const mediaQueries = extractMediaQueries(css);
+  const topElements = extractTopElements(css);
+
+  return { cssVariables, topElements, fonts, mediaQueries };
+}
+
+/** Extract CSS custom properties from :root { } blocks */
+function extractCssVariables(css: string): Record<string, string> {
+  const vars: Record<string, string> = {};
+  // Match :root { ... } (non-greedy, handles multiple blocks)
+  const rootRe = /:root\s*\{([^}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = rootRe.exec(css)) !== null) {
+    const block = m[1];
+    const propRe = /(--[\w-]+)\s*:\s*([^;]+);/g;
+    let p: RegExpExecArray | null;
+    while ((p = propRe.exec(block)) !== null) {
+      vars[p[1].trim()] = p[2].trim();
+    }
+  }
+  return vars;
+}
+
 const RELEVANT_PROPS = [
   "color",
   "background-color",
@@ -38,121 +124,76 @@ const RELEVANT_PROPS = [
   "opacity",
 ] as const;
 
-export async function scrapePage(url: string): Promise<ScrapeResult> {
-  const browser = await chromium.launch({ headless: true });
+type RelevantProp = (typeof RELEVANT_PROPS)[number];
 
-  try {
-    const context = await browser.newContext({
-      viewport: { width: 1440, height: 900 },
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+/** Extract representative element styles from CSS rules */
+function extractTopElements(css: string): ElementStyle[] {
+  const elements: ElementStyle[] = [];
+
+  // Match selector { declarations }
+  const ruleRe = /([^{}@][^{}]*)\{([^{}]*)\}/g;
+  let m: RegExpExecArray | null;
+
+  while ((m = ruleRe.exec(css)) !== null && elements.length < 60) {
+    const selector = m[1].trim();
+    const declarations = m[2];
+
+    // Only look at simple tag / class selectors; skip long combinator chains
+    if (selector.length > 120) continue;
+
+    const styles: Record<string, string> = {};
+
+    for (const prop of RELEVANT_PROPS) {
+      const re = new RegExp(`(?:^|;)\\s*${escapeRegex(prop)}\\s*:\\s*([^;]+)`, "i");
+      const hit = declarations.match(re);
+      if (hit) {
+        const val = hit[1].trim();
+        if (val && val !== "none" && val !== "normal" && val !== "auto" && val !== "inherit") {
+          styles[prop as RelevantProp] = val;
+        }
+      }
+    }
+
+    if (Object.keys(styles).length === 0) continue;
+
+    // Derive a pseudo tag + classes from the selector
+    const tagMatch = selector.match(/^([a-z][a-z0-9]*)/i);
+    const classMatches = [...selector.matchAll(/\.([\w-]+)/g)].map((x) => x[1]);
+
+    elements.push({
+      tag: tagMatch ? tagMatch[1].toLowerCase() : "div",
+      classes: classMatches.slice(0, 5),
+      styles,
     });
-
-    const page = await context.newPage();
-
-    await page.goto(url, {
-      waitUntil: "networkidle",
-      timeout: 30_000,
-    });
-
-    // Wait for any lazy-loaded content
-    await page.waitForTimeout(1500);
-
-    const [screenshotBuffer, cssSummary] = await Promise.all([
-      page.screenshot({ fullPage: false, type: "png" }),
-      extractCssSummary(page),
-    ]);
-
-    return {
-      screenshotBase64: screenshotBuffer.toString("base64"),
-      cssSummary,
-    };
-  } finally {
-    await browser.close();
   }
+
+  return elements;
 }
 
-async function extractCssSummary(page: Page): Promise<CssSummary> {
-  return page.evaluate((relevantProps) => {
-    // ── CSS custom variables ────────────────────────────────────────────────
-    const cssVariables: Record<string, string> = {};
-    const sheets = Array.from(document.styleSheets);
+/** Extract font-family values */
+function extractFonts(css: string): string[] {
+  const fontSet = new Set<string>();
+  const re = /font-family\s*:\s*([^;]+)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(css)) !== null && fontSet.size < 10) {
+    fontSet.add(m[1].trim().replace(/^['"]|['"]$/g, ""));
+  }
+  return [...fontSet].slice(0, 10);
+}
 
-    for (const sheet of sheets) {
-      try {
-        const rules = Array.from(sheet.cssRules || []);
-        for (const rule of rules) {
-          if (rule instanceof CSSStyleRule && rule.selectorText === ":root") {
-            const style = rule.style;
-            for (let i = 0; i < style.length; i++) {
-              const prop = style[i];
-              if (prop.startsWith("--")) {
-                cssVariables[prop] = style.getPropertyValue(prop).trim();
-              }
-            }
-          }
-        }
-      } catch {
-        // Cross-origin stylesheets throw — skip silently
-      }
-    }
+/** Extract @media query conditions */
+function extractMediaQueries(css: string): string[] {
+  const mqs = new Set<string>();
+  const re = /@media\s+([^{]+)\{/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(css)) !== null && mqs.size < 20) {
+    mqs.add(m[1].trim());
+  }
+  return [...mqs].slice(0, 20);
+}
 
-    // ── Top 100 elements' computed styles ───────────────────────────────────
-    const elements = Array.from(document.querySelectorAll("*")).slice(0, 100);
-    const topElements: Array<{
-      tag: string;
-      classes: string[];
-      styles: Record<string, string>;
-    }> = [];
-
-    for (const el of elements) {
-      const computed = window.getComputedStyle(el);
-      const styles: Record<string, string> = {};
-
-      for (const prop of relevantProps) {
-        const val = computed.getPropertyValue(prop).trim();
-        if (val && val !== "none" && val !== "normal" && val !== "auto") {
-          styles[prop] = val;
-        }
-      }
-
-      if (Object.keys(styles).length > 0) {
-        topElements.push({
-          tag: el.tagName.toLowerCase(),
-          classes: Array.from(el.classList).slice(0, 5),
-          styles,
-        });
-      }
-    }
-
-    // ── Fonts in use ────────────────────────────────────────────────────────
-    const fontSet = new Set<string>();
-    for (const el of topElements) {
-      const ff = el.styles["font-family"];
-      if (ff) fontSet.add(ff);
-    }
-
-    // ── Media queries ───────────────────────────────────────────────────────
-    const mediaQueries: string[] = [];
-    for (const sheet of sheets) {
-      try {
-        for (const rule of Array.from(sheet.cssRules || [])) {
-          if (rule instanceof CSSMediaRule) {
-            mediaQueries.push(rule.conditionText);
-          }
-        }
-      } catch {
-        // skip
-      }
-    }
-
-    return {
-      cssVariables,
-      topElements: topElements.slice(0, 60), // cap payload size
-      fonts: Array.from(fontSet).slice(0, 10),
-      mediaQueries: [...new Set(mediaQueries)].slice(0, 20),
-    };
-  }, RELEVANT_PROPS as unknown as string[]);
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Estimate token count (rough: ~4 chars per token) */

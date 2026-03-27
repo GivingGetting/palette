@@ -45,7 +45,7 @@ export async function analyzeUrl(
   const { onProgress, maxRetries = 2, engine, anthropicApiKey } = options;
   const useOllama = engine?.engine === "ollama";
 
-  onProgress?.("正在启动浏览器…", 0.05);
+  onProgress?.("正在抓取页面…", 0.05);
   const scrapeResult = await scrapePage(url);
 
   onProgress?.("正在分析页面样式…", 0.35);
