@@ -95,6 +95,7 @@ export default function HomePage() {
         <div className="flex items-center gap-6 text-sm text-[var(--text-muted)]">
           <a href="/library" className="hover:text-[var(--text)] transition-colors">风格库</a>
           <a href="#" className="hover:text-[var(--text)] transition-colors">对比生图</a>
+          <a href="/settings" className="hover:text-[var(--text)] transition-colors">设置</a>
           <AuthButton />
         </div>
       </nav>
