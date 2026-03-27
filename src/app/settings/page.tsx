@@ -4,6 +4,14 @@ import { useEffect, useState } from "react";
 
 const KEYS = [
   {
+    id: "anthropic",
+    label: "Anthropic",
+    desc: "用于 Claude 风格解析引擎（BYOK，可覆盖服务器默认 Key）",
+    placeholder: "sk-ant-...",
+    color: "#d97706",
+    docsUrl: "https://console.anthropic.com/settings/keys",
+  },
+  {
     id: "openai",
     label: "OpenAI",
     desc: "用于 DALL-E 3 生图",
@@ -111,16 +119,6 @@ export default function SettingsPage() {
           <p className="text-sm text-[var(--text-muted)] mt-1">
             Key 仅保存在本地浏览器，不上传服务器。生图费用由各平台直接向你收取。
           </p>
-        </div>
-
-        {/* Anthropic — already set via env */}
-        <div className="card p-5 flex items-center gap-4 opacity-60">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: "#d97706" }}>A</div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold">Anthropic（Claude 解析引擎）</p>
-            <p className="text-xs text-[var(--text-muted)]">已通过服务器环境变量配置，无需填写</p>
-          </div>
-          <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">✓ 已配置</span>
         </div>
 
         {/* Analyzer Engine */}

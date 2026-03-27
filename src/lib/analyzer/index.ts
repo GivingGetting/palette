@@ -18,6 +18,7 @@ export interface AnalyzeUrlOptions {
   onProgress?: (step: string, percent: number) => void;
   maxRetries?: number;
   engine?: EngineConfig;
+  anthropicApiKey?: string;
 }
 
 export interface AnalyzeImageOptions {
@@ -25,6 +26,7 @@ export interface AnalyzeImageOptions {
   maxRetries?: number;
   mediaType?: string;
   engine?: EngineConfig;
+  anthropicApiKey?: string;
 }
 
 export interface AnalyzeResult {
@@ -40,7 +42,7 @@ export async function analyzeUrl(
   url: string,
   options: AnalyzeUrlOptions = {}
 ): Promise<AnalyzeResult> {
-  const { onProgress, maxRetries = 2, engine } = options;
+  const { onProgress, maxRetries = 2, engine, anthropicApiKey } = options;
   const useOllama = engine?.engine === "ollama";
 
   onProgress?.("正在启动浏览器…", 0.05);
@@ -53,7 +55,7 @@ export async function analyzeUrl(
   const styleDna = await analyzeWithRetry(
     () => useOllama
       ? analyzeWithOllama(scrapeResult, { baseUrl: engine.ollamaUrl, model: engine.ollamaModel, sourceUrl: url, sourceType: "url", screenshotBase64: scrapeResult.screenshotBase64 })
-      : analyzeWithClaude(scrapeResult, { sourceUrl: url, sourceType: "url" }),
+      : analyzeWithClaude(scrapeResult, { sourceUrl: url, sourceType: "url", apiKey: anthropicApiKey }),
     maxRetries,
     onProgress
   );
@@ -69,7 +71,7 @@ export async function analyzeImage(
   imageBase64: string,
   options: AnalyzeImageOptions = {}
 ): Promise<AnalyzeResult> {
-  const { onProgress, maxRetries = 2, mediaType = "image/png", engine } = options;
+  const { onProgress, maxRetries = 2, mediaType = "image/png", engine, anthropicApiKey } = options;
   const useOllama = engine?.engine === "ollama";
 
   onProgress?.("正在分析图片…", 0.20);
@@ -83,7 +85,7 @@ export async function analyzeImage(
   const styleDna = await analyzeWithRetry(
     () => useOllama
       ? analyzeWithOllama(scrapeResult, { baseUrl: engine.ollamaUrl, model: engine.ollamaModel, sourceType: "image", screenshotBase64: imageBase64 })
-      : analyzeWithClaude(scrapeResult, { sourceType: "image", mediaType }),
+      : analyzeWithClaude(scrapeResult, { sourceType: "image", mediaType, apiKey: anthropicApiKey }),
     maxRetries,
     onProgress
   );

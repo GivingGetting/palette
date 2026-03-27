@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { source_type, url, image, media_type, engine } = body;
+  const { source_type, url, image, media_type, engine, anthropic_key } = body;
 
   if (source_type === "url" && !url) {
     return NextResponse.json({ error: { code: "bad_request", message: "url required" } }, { status: 400 });
@@ -33,8 +33,8 @@ export async function POST(req: Request) {
     try {
       const { styleDna } =
         source_type === "url"
-          ? await analyzeUrl(url, { onProgress, engine })
-          : await analyzeImage(image, { onProgress, mediaType: media_type, engine });
+          ? await analyzeUrl(url, { onProgress, engine, anthropicApiKey: anthropic_key })
+          : await analyzeImage(image, { onProgress, mediaType: media_type, engine, anthropicApiKey: anthropic_key });
 
       await addToLibrary(db, user.id, task_id, styleDna);
       await updateTask(db, task_id, { status: "done", result: styleDna, step: "完成", percent: 1 });

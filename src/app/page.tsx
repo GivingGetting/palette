@@ -25,6 +25,17 @@ export default function HomePage() {
     };
   }
 
+  function getAnthropicKey(): string | undefined {
+    const stored = localStorage.getItem("palette_api_keys");
+    if (!stored) return undefined;
+    try {
+      const keys = JSON.parse(stored);
+      return keys.anthropic || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   async function submitUrl(targetUrl: string) {
     if (!targetUrl.trim()) return;
     setLoading(true);
@@ -33,7 +44,7 @@ export default function HomePage() {
       const res = await fetch("/api/v1/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ source_type: "url", url: targetUrl.trim(), engine: getEngineConfig() }),
+        body: JSON.stringify({ source_type: "url", url: targetUrl.trim(), engine: getEngineConfig(), anthropic_key: getAnthropicKey() }),
       });
       if (!res.ok) throw new Error(await res.text());
       const { task_id } = await res.json();
@@ -53,7 +64,7 @@ export default function HomePage() {
       const res = await fetch("/api/v1/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ source_type: "image", image: base64, media_type: mediaType, engine: getEngineConfig() }),
+        body: JSON.stringify({ source_type: "image", image: base64, media_type: mediaType, engine: getEngineConfig(), anthropic_key: getAnthropicKey() }),
       });
       if (!res.ok) throw new Error(await res.text());
       const { task_id } = await res.json();

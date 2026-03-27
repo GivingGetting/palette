@@ -193,4 +193,6 @@ NEXT_PUBLIC_SUPABASE_URL=       # Supabase 项目 URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=  # Supabase anon key
 ```
 
-其余 Key（OpenAI、Google、Ideogram、ComfyUI）由用户在设置页填写，存 localStorage。
+其余 Key（**Anthropic BYOK**、OpenAI、Google、Ideogram、ComfyUI）由用户在设置页填写，存 localStorage。
+
+- `ANTHROPIC_API_KEY`（服务端环境变量）是默认 fallback；用户在设置页填写自己的 Anthropic Key 后优先使用，可覆盖服务端默认值。

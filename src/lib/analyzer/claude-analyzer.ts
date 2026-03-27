@@ -2,8 +2,6 @@ import Anthropic from "@anthropic-ai/sdk";
 import { StyleDNASchema, type StyleDNA } from "./schema";
 import type { ScrapeResult } from "./scraper";
 
-const client = new Anthropic();
-
 const SYSTEM_PROMPT = `You are a professional design system analyst specializing in visual style extraction.
 
 Your task is to analyze a website screenshot and its CSS data, then output a precise Style DNA JSON object.
@@ -90,12 +88,14 @@ interface AnalyzeOptions {
   sourceUrl?: string;
   sourceType: "url" | "image";
   mediaType?: string;
+  apiKey?: string;
 }
 
 export async function analyzeWithClaude(
   scrapeResult: ScrapeResult,
   options: AnalyzeOptions
 ): Promise<StyleDNA> {
+  const client = new Anthropic(options.apiKey ? { apiKey: options.apiKey } : {});
   const { screenshotBase64, cssSummary } = scrapeResult;
   const mediaType = (options.mediaType ?? "image/png") as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
 
